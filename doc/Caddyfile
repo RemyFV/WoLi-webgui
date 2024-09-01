@@ -1,3 +1,5 @@
 woli.your-domain.com {
         reverse_proxy 127.0.0.1:8783
 }
+
+# see https://caddyserver.com/docs/caddyfile/directives/basic_auth
