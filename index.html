@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wake-on-WAN</title>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #121212;
+            color: #ffffff;
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        h1 {
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+        }
+        .info-icon {
+            margin-left: 10px;
+            cursor: pointer;
+            font-size: 18px;
+            background-color: #ffffff;
+            color: #121212;
+            border-radius: 50%;
+            padding: 2px 6px;
+        }
+        #info-box {
+            display: none;
+            background-color: #1e1e1e;
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            width: 100%;
+            max-width: 400px; /* Max width to fit smaller screens */
+            text-align: left;
+            font-size: 14px;
+        }
+        form {
+            background-color: #1e1e1e;
+            padding: 20px;
+            border-radius: 8px;
+            width: 100%;
+            max-width: 300px; /* Max width for responsiveness */
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+        }
+        input[type="text"] {
+            width: calc(100% - 20px);
+            padding: 10px;
+            font-size: 14px;
+            border-radius: 4px;
+            border: none;
+            margin-bottom: 10px;
+        }
+        input[type="submit"] {
+            padding: 10px;
+            font-size: 14px;
+            border-radius: 4px;
+            border: none;
+            background-color: #6200ee;
+            color: white;
+            cursor: pointer;
+            width: 100%;
+        }
+        input[type="submit"]:hover {
+            background-color: #3700b3;
+        }
+        #output {
+            margin-top: 20px;
+            width: 100%;
+            max-width: 400px; /* Max width for responsiveness */
+            height: 200px;
+            background-color: #000000;
+            color: #00ff00;
+            font-family: "Courier New", Courier, monospace;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-y: auto;
+            white-space: pre-wrap; /* Preserve whitespace and line breaks */
+        }
+    </style>
+</head>
+<body>
+    <h1>Wake-on-WAN 
+        <span class="info-icon" onclick="toggleInfoBox()">?</span>
+    </h1>
+    <div id="info-box">
+        <p>This tool allows you to send a Wake-on-LAN (WoL) magic packet to a remote device via a WoL proxy. Enter the MAC address of the target device, the public IP of the WoL proxy, and an optional port number (default is 9).</p>
+        <p>If you provide parameters directly in the URL (e.g. <code>?mac=902E1697677B&ip=82.64.184.183&port=9</code>), the form will auto-fill and send the magic packet automatically.</p>
+        <p>When you fill in the information and click "Send Magic Packet" the URL will automatically update with the parameters, allowing you to bookmark the page for easy access in the future.</p>
+    </div>
+    <form id="wolForm" method="GET">
+        <label for="mac">MAC Address:</label>
+        <input type="text" id="mac" name="mac" required>
+
+        <label for="ip">Router Public IP (required):</label>
+        <input type="text" id="ip" name="ip" required>
+
+        <label for="port">Port Number (optional, default 9):</label>
+        <input type="text" id="port" name="port" value="9">
+
+        <input type="submit" value="Send Magic Packet">
+    </form>
+    <div id="output"></div>
+
+    <script>
+        function getQueryParams() {
+            const params = new URLSearchParams(window.location.search);
+            return {
+                mac: decodeURIComponent(params.get('mac') || ''),
+                ip: decodeURIComponent(params.get('ip') || ''),
+                port: decodeURIComponent(params.get('port') || '9')
+            };
+        }
+
+        function prefillForm() {
+            const { mac, ip, port } = getQueryParams();
+            if (mac) document.getElementById('mac').value = formatMAC(mac);
+            if (ip) document.getElementById('ip').value = ip;
+            if (port) document.getElementById('port').value = port;
+        }
+
+        function formatMAC(mac) {
+            // Automatically add colons to the MAC address for display
+            mac = mac.replace(/[^a-fA-F0-9]/g, ''); // Remove any non-hex characters
+            return mac.match(/.{1,2}/g).join(':').slice(0, 17); // Add colons every two characters
+        }
+
+        function stripColons(mac) {
+            return mac.replace(/:/g, '');
+        }
+
+        function handleMACInput(event) {
+            const macField = document.getElementById('mac');
+            macField.value = formatMAC(macField.value);
+        }
+
+        function updateURLParams(formData) {
+            const newURL = window.location.pathname + '?' + formData;
+            window.history.pushState({ path: newURL }, '', newURL);
+        }
+
+        function submitForm(event) {
+            event.preventDefault();
+            const form = document.getElementById('wolForm');
+            
+            // Get the formatted MAC address from the input field
+            const macField = document.getElementById('mac');
+            const formattedMac = macField.value; // Keep the formatted MAC address for display
+
+            // Strip colons from the MAC address for submission
+            const strippedMac = stripColons(formattedMac);
+            macField.value = strippedMac; // Set the stripped value for URL submission
+
+            const formData = new URLSearchParams(new FormData(form)).toString();
+
+            updateURLParams(formData);
+
+            // Restore the formatted MAC address for the input field
+            macField.value = formattedMac;
+
+            fetch('wol.cgi?' + formData)
+                .then(response => response.text())
+                .then(data => {
+                    // Format MAC address in output
+                    const macWithColons = formatMAC(strippedMac);
+                    const outputData = data.replace(strippedMac, macWithColons);
+                    document.getElementById('output').innerHTML = outputData;
+                })
+                .catch(error => {
+                    document.getElementById('output').innerHTML = '<p>Error sending magic packet.</p>';
+                });
+        }
+
+        function autoSubmit() {
+            const { mac } = getQueryParams();
+            if (mac) {
+                submitForm(new Event('submit'));
+            }
+        }
+
+        function toggleInfoBox() {
+            const infoBox = document.getElementById('info-box');
+            infoBox.style.display = (infoBox.style.display === 'block') ? 'none' : 'block';
+        }
+
+        document.getElementById('wolForm').addEventListener('submit', submitForm);
+        document.getElementById('mac').addEventListener('input', handleMACInput);
+        prefillForm();
+        autoSubmit();
+    </script>
+</body>
+</html>
