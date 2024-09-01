@@ -3,5 +3,5 @@ services:
     woli-webgui:
         container_name: woli-webgui
         ports:
-            - 8783:80
+            - 127.0.0.1:8783:80
         image: remyfv/woli-webgui
